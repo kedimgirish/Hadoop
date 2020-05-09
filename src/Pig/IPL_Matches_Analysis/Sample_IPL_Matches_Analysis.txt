@@ -1,0 +1,79 @@
+input_file = LOAD 'matches.csv' USING PigStorage(',') AS (id:int,season:int,city:chararray,date:chararray,team1:chararray,team2:chararray,toss_winner:chararray,toss_decision:chararray,result:chararray,dl_applied:int,winner:chararray,win_by_runs:int,win_by_wickets:int,player_of_match:chararray,venue:chararray,umpire1:chararray,umpire2:chararray,umpire3:chararray);
+
+DS_matches = RANK input_file;
+
+NoHeader = FILTER DS_matches BY (rank_input_file > 1);
+
+Ordered_Matches = ORDER NoHeader BY rank_input_file;
+
+
+-- Q) Does the toss play important role ? 
+-- Let't see match winning percentage based on toss for each team.
+
+Ordered_Matches_Selected_Rows = FOREACH Ordered_Matches GENERATE team1,toss_winner,winner;
+
+toss_matches_New_colum = FOREACH Ordered_Matches_Selected_Rows GENERATE *,(toss_winner == winner?1:0) as isWinner;
+
+team_Group = GROUP toss_matches_New_colum BY toss_winner;
+
+win_matches = FOREACH team_Group GENERATE group,SUM($1.$3),COUNT($1.$1),(float)SUM($1.$3)/COUNT($1.$1);
+
+
+
+
+-- Q) Who won the most number of Man of the Match awards?
+
+man_of_the_match = FOREACH Ordered_Matches GENERATE player_of_match;
+
+man_of_the_match_group = GROUP man_of_the_match BY player_of_match;
+
+No_Of_MoM_Awards = FOREACH man_of_the_match_group GENEREATE group, COUNT(man_of_the_match.player_of_match) as count;
+
+No_Of_MoM_Awards_Count = ORDER No_Of_MoM_Awards BY count DESC;
+
+-- (CH Gayle,18)
+
+
+
+
+-- Q) which venue hosted more number of matches
+
+DS_venue = FOREACH Ordered_Matches GENERATE venue;
+
+venue_group = GROUP DS_venue BY venue;
+
+No_Venue_group = FOREACH venue_group GENERATE group,COUNT(DS_venue.venue) AS count;
+
+No_Venue_group_ordered = ORDER No_Venue_group BY count DESC;
+
+-- (M Chinnaswamy Stadium,66)
+
+
+
+-- Q) Which team won most matches, batting first or chasing ?
+
+DS_Matches = FOREACH Ordered_Matches GENERATE team1,toss_winner,winner,toss_decision;
+
+DS_Matches_toss = FOREACH DS_Matches GENERATE toss_decision, (toss_winner == winner?1:0) as isWinner;
+
+DS_Matches_toss_Group = GROUP DS_Matches_toss BY toss_decision;
+
+-- DS_Matches_toss_Group: {group: chararray,DS_Matches_toss: {(toss_decision: chararray,isWinner: int)}}
+
+
+DS_Matches_toss_Count = FOREACH DS_Matches_toss_Group GENERATE group, SUM(DS_Matches_toss.isWinner);
+
+-- (bat,124)
+-- (field,201)
+
+
+-- Q) lets Find the nail biting matchs (teams won my 1 run)
+
+DS_Matches = FILTER Ordered_Matches BY (win_by_runs >= 1 and win_by_runs <= 6);
+
+NB_Matches_Group = GROUP DS_Matches all;
+
+NB_Matches_count = FOREACH NB_Matches_Group GENERATE COUNT(DS_Matches)
+
+-- There are 37 Nail biting matches
+
